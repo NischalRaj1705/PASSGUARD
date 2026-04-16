@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PassGuard — Password Policy Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07090f;--surface:#0d1117;--card:#111827;--border:#1f2937;--border2:#374151;
+  --blue:#3b82f6;--cyan:#06b6d4;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;
+  --purple:#a855f7;--orange:#f97316;
+  --text:#f1f5f9;--muted:#6b7280;--dim:#374151;
+  --font:'Space Grotesk',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+
+/* Grid bg */
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:48px 48px;opacity:.25;pointer-events:none;z-index:0}
+
+/* Glow */
+.glow{position:fixed;top:-150px;left:50%;transform:translateX(-50%);
+  width:700px;height:400px;
+  background:radial-gradient(ellipse,rgba(59,130,246,.1) 0%,transparent 70%);
+  pointer-events:none;z-index:0}
+
+.wrap{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:32px 20px 80px}
+
+/* Header */
+header{text-align:center;margin-bottom:40px;animation:fadeDown .6s ease both}
+.logo-pill{display:inline-flex;align-items:center;gap:8px;
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:100px;padding:6px 16px;font-size:11px;font-family:var(--mono);
+  color:var(--cyan);letter-spacing:2px;text-transform:uppercase;margin-bottom:18px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+h1{font-size:clamp(28px,5vw,48px);font-weight:700;letter-spacing:-1px;line-height:1.1;
+  background:linear-gradient(135deg,#f1f5f9 0%,#94a3b8 50%,#3b82f6 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.sub{color:var(--muted);font-size:14px;margin-top:8px}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border2);
+  border-radius:12px;padding:4px;margin-bottom:24px;overflow-x:auto}
+.tab{flex:1;min-width:120px;padding:10px 16px;border:none;background:transparent;
+  color:var(--muted);font-family:var(--font);font-size:13px;font-weight:600;
+  border-radius:8px;cursor:pointer;transition:all .2s;white-space:nowrap;text-align:center}
+.tab.active{background:var(--card);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.tab:hover:not(.active){color:var(--text)}
+
+/* Panels */
+.panel{display:none;animation:fadeUp .35s ease both}
+.panel.active{display:block}
+
+/* Card */
+.card{background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:24px;margin-bottom:18px}
+.card-label{font-size:10px;font-family:var(--mono);letter-spacing:2px;text-transform:uppercase;
+  color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card-label::before{content:'';display:inline-block;width:3px;height:11px;background:var(--blue);border-radius:2px}
+
+/* Input */
+.pw-wrap{position:relative}
+.pw-input{width:100%;background:var(--surface);border:1.5px solid var(--border2);
+  border-radius:10px;padding:14px 48px 14px 16px;font-size:17px;font-family:var(--mono);
+  color:var(--text);letter-spacing:2px;outline:none;transition:border-color .2s,box-shadow .2s}
+.pw-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+.pw-input::placeholder{letter-spacing:0;font-size:14px;color:var(--muted)}
+.eye{position:absolute;right:14px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--muted);cursor:pointer;font-size:17px;transition:color .2s}
+.eye:hover{color:var(--text)}
+
+/* Live bar */
+.live-wrap{margin-top:14px}
+.live-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;font-size:12.5px}
+.live-label{color:var(--muted)}
+.live-rating{font-weight:700;font-family:var(--mono);font-size:12.5px;transition:color .3s}
+.bar-track{height:5px;background:var(--dim);border-radius:100px;overflow:hidden}
+.bar-fill{height:100%;border-radius:100px;width:0;transition:width .5s cubic-bezier(.4,0,.2,1),background .3s}
+
+/* Pills */
+.pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.pill{font-family:var(--mono);font-size:10.5px;padding:3px 10px;border-radius:100px;
+  border:1px solid var(--border2);color:var(--muted);background:var(--surface);
+  transition:all .25s;letter-spacing:.3px}
+.pill.on{background:rgba(34,197,94,.1);border-color:var(--green);color:var(--green)}
+
+/* Toggles */
+.toggle-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:560px){.toggle-grid{grid-template-columns:1fr}}
+.tog{display:flex;align-items:center;gap:10px;background:var(--surface);
+  border:1px solid var(--border);border-radius:9px;padding:11px 13px;
+  cursor:pointer;transition:all .2s;user-select:none}
+.tog:hover{border-color:var(--border2)}
+.tog.on{border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.05)}
+.sw{width:34px;height:19px;background:var(--dim);border-radius:100px;position:relative;flex-shrink:0;transition:background .2s}
+.tog.on .sw{background:var(--blue)}
+.th{position:absolute;top:2.5px;left:2.5px;width:14px;height:14px;background:white;border-radius:50%;transition:left .2s}
+.tog.on .th{left:17.5px}
+.tog-label{font-size:12px;color:var(--muted);line-height:1.3;transition:color .2s}
+.tog.on .tog-label{color:var(--text)}
+
+/* Buttons */
+.btn{padding:14px 20px;border:none;border-radius:10px;font-family:var(--font);
+  font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;display:flex;
+  align-items:center;justify-content:center;gap:8px}
+.btn-primary{background:var(--blue);color:white;width:100%;margin-top:18px;
+  box-shadow:0 4px 18px rgba(59,130,246,.3)}
+.btn-primary:hover{background:#2563eb;box-shadow:0 6px 24px rgba(59,130,246,.45)}
+.btn-primary:disabled{background:var(--dim);box-shadow:none;cursor:not-allowed}
+.btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border2);padding:10px 16px;font-size:13px}
+.btn-secondary:hover{border-color:var(--blue);color:var(--blue)}
+.btn-green{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.btn-green:hover{background:rgba(34,197,94,.25)}
+.btn-red{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.25);padding:8px 14px;font-size:12px}
+
+/* Spinner */
+.spin{display:none;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);
+  border-top-color:white;border-radius:50%;animation:spin .6s linear infinite}
+
+/* Score Ring */
+.score-row{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.ring-wrap{flex-shrink:0;position:relative;width:110px;height:110px}
+.ring-wrap svg{transform:rotate(-90deg);width:110px;height:110px}
+.rbg{fill:none;stroke:var(--dim);stroke-width:7}
+.rfill{fill:none;stroke-width:7;stroke-linecap:round;stroke-dasharray:276.4;stroke-dashoffset:276.4;transition:stroke-dashoffset 1s cubic-bezier(.4,0,.2,1),stroke .3s}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-num{font-size:26px;font-weight:700;font-family:var(--mono);line-height:1}
+.ring-sub{font-size:8px;font-family:var(--mono);letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-top:2px}
+.score-meta{flex:1;min-width:180px}
+.rating-big{font-size:20px;font-weight:700;letter-spacing:-.3px;margin-bottom:12px}
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.meta-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px}
+.meta-k{font-size:9px;font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.meta-v{font-size:13px;font-weight:600;font-family:var(--mono);word-break:break-all}
+
+/* HIBP Banner */
+.hibp{border-radius:9px;padding:13px 16px;display:flex;align-items:flex-start;gap:12px;font-size:13px;line-height:1.5;border:1px solid}
+.hibp.found{background:rgba(239,68,68,.07);border-color:rgba(239,68,68,.3);color:#fca5a5}
+.hibp.safe{background:rgba(34,197,94,.07);border-color:rgba(34,197,94,.3);color:#86efac}
+.hibp.offline{background:rgba(245,158,11,.07);border-color:rgba(245,158,11,.3);color:#fcd34d}
+.hibp-icon{font-size:20px;flex-shrink:0}
+
+/* Char grid */
+.char-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.char-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 13px;font-size:12.5px;transition:border-color .3s}
+.char-item.found{border-color:rgba(34,197,94,.3)}
+.char-item.missing{opacity:.55}
+.char-icon{font-size:15px}
+.char-txt{flex:1;color:var(--muted)}
+.char-badge{font-family:var(--mono);font-size:9.5px;padding:2px 8px;border-radius:100px;font-weight:600}
+.char-item.found .char-badge{background:rgba(34,197,94,.12);color:var(--green)}
+.char-item.missing .char-badge{background:rgba(239,68,68,.08);color:var(--red)}
+
+/* Problems / Tips */
+.prob-list,.tip-list{display:flex;flex-direction:column;gap:7px}
+.prob-item{display:flex;align-items:flex-start;gap:9px;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.18);border-radius:8px;padding:9px 13px;font-size:12.5px;color:#fca5a5}
+.tip-item{display:flex;align-items:flex-start;gap:9px;background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.18);border-radius:8px;padding:9px 13px;font-size:12.5px;color:#fcd34d}
+.tip-item.urgent{background:rgba(239,68,68,.07);border-color:rgba(239,68,68,.25);color:#fca5a5}
+.tip-num{background:rgba(245,158,11,.18);color:var(--yellow);font-family:var(--mono);font-size:9.5px;font-weight:700;width:19px;height:19px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.tip-item.urgent .tip-num{background:rgba(239,68,68,.18);color:var(--red)}
+.ok-msg{display:flex;align-items:center;gap:9px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:11px 14px;font-size:12.5px;color:#86efac}
+
+/* Checklist */
+.checklist{display:flex;flex-direction:column;gap:7px}
+.chk-row{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12.5px;gap:10px}
+.chk-name{color:var(--muted);flex:1}
+.chk-pill{font-family:var(--mono);font-size:9.5px;font-weight:700;padding:2px 9px;border-radius:100px;letter-spacing:.3px;flex-shrink:0}
+.chk-pill.pass{background:rgba(34,197,94,.12);color:var(--green)}
+.chk-pill.fail{background:rgba(239,68,68,.08);color:var(--red)}
+
+/* Mismatch */
+.mm-item{display:flex;align-items:flex-start;gap:9px;background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.22);border-radius:8px;padding:9px 13px;font-size:12.5px;color:#fdba74;margin-bottom:7px}
+
+/* Verdict */
+.verdict{border-radius:12px;padding:18px 20px;border:1px solid;text-align:center;margin-top:4px}
+.verdict.vs{background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.28)}
+.verdict.st{background:rgba(6,182,212,.06);border-color:rgba(6,182,212,.28)}
+.verdict.mo{background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.28)}
+.verdict.wk,.verdict.vw{background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.28)}
+.verdict.lk{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.5)}
+.v-emoji{font-size:28px;margin-bottom:7px}
+.v-text{font-size:15px;font-weight:700}
+.v-sub{font-size:12.5px;color:var(--muted);margin-top:4px}
+
+/* ── GENERATOR ── */
+.gen-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+@media(max-width:480px){.gen-controls{grid-template-columns:1fr}}
+.gen-opt{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:11px 14px;cursor:pointer;user-select:none;transition:all .2s}
+.gen-opt.on{border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.05)}
+.gen-opt-label{font-size:12.5px;color:var(--muted);transition:color .2s}
+.gen-opt.on .gen-opt-label{color:var(--text)}
+.len-row{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.len-label{font-size:12.5px;color:var(--muted);white-space:nowrap}
+input[type=range]{flex:1;-webkit-appearance:none;height:5px;background:var(--dim);border-radius:100px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--blue);cursor:pointer;box-shadow:0 0 8px rgba(59,130,246,.5)}
+.len-val{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--blue);min-width:24px;text-align:right}
+.gen-result{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:18px;margin-top:4px}
+.gen-pass{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--text);word-break:break-all;letter-spacing:1.5px;margin-bottom:12px;line-height:1.5}
+.gen-meta{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.gen-tag{font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:100px;border:1px solid var(--border2);color:var(--muted)}
+.copy-btn{background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);color:var(--blue);border-radius:7px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all .2s}
+.copy-btn:hover{background:rgba(59,130,246,.22)}
+.copy-btn.copied{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3);color:var(--green)}
+
+/* ── BCRYPT DEMO ── */
+.hash-compare{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.hash-row{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:13px 16px}
+.hash-alg{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.alg-name{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:1px}
+.alg-badge{font-size:9.5px;font-family:var(--mono);padding:2px 8px;border-radius:100px;font-weight:600}
+.bad{background:rgba(239,68,68,.12);color:var(--red)}
+.ok{background:rgba(245,158,11,.12);color:var(--yellow)}
+.good{background:rgba(34,197,94,.12);color:var(--green)}
+.hash-val{font-family:var(--mono);font-size:9px;color:var(--cyan);word-break:break-all;line-height:1.6;margin-bottom:6px}
+.hash-exp{font-size:11.5px;color:var(--muted);line-height:1.4}
+.bcrypt-time{font-family:var(--mono);font-size:10px;color:var(--green);margin-top:5px}
+.verify-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;margin-top:8px}
+.rounds-row{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+
+/* ── HISTORY ── */
+.hist-empty{text-align:center;padding:40px;color:var(--muted);font-size:14px}
+.hist-list{display:flex;flex-direction:column;gap:10px}
+.hist-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:14px}
+.hist-score{font-family:var(--mono);font-size:22px;font-weight:700;min-width:42px;text-align:center}
+.hist-info{flex:1}
+.hist-rating{font-size:13px;font-weight:700;margin-bottom:3px}
+.hist-meta{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.hist-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.hb{font-size:9.5px;font-family:var(--mono);padding:2px 7px;border-radius:100px;border:1px solid var(--border2);color:var(--muted)}
+.hb.leaked{border-color:rgba(239,68,68,.3);color:var(--red);background:rgba(239,68,68,.06)}
+.hb.safe{border-color:rgba(34,197,94,.3);color:var(--green);background:rgba(34,197,94,.06)}
+.hist-actions{display:flex;gap:8px}
+.dl-btn{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);color:var(--blue);border-radius:7px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all .2s;text-decoration:none}
+.dl-btn:hover{background:rgba(59,130,246,.2)}
+
+/* SHA-1 visual */
+.sha-visual{font-family:var(--mono);font-size:11px;margin-top:10px;line-height:2;word-break:break-all}
+.sha-sent{color:var(--green);font-weight:700}
+.sha-hidden{color:var(--muted)}
+
+/* Footer */
+footer{text-align:center;margin-top:48px;font-size:11px;color:var(--dim);font-family:var(--mono)}
+
+/* Animations */
+@keyframes fadeDown{from{opacity:0;transform:translateY(-18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="wrap">
+
+<header>
+  <div class="logo-pill">Password Policy Analyzer</div>
+  <h1>PassGuard</h1>
+  <p class="sub">Analyze · Generate · Hash Demo · History · PDF Reports</p>
+</header>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('analyze',this)">🔍 Analyzer</button>
+  <button class="tab" onclick="switchTab('generate',this)">⚡ Generator</button>
+  <button class="tab" onclick="switchTab('bcrypt',this)">🔒 Hash Demo</button>
+  <button class="tab" onclick="switchTab('history',this)">📊 History</button>
+</div>
+
+<!-- ═══════════════ ANALYZER TAB ═══════════════ -->
+<div class="panel active" id="panel-analyze">
+
+  <div class="card">
+    <div class="card-label">Enter Password</div>
+    <div class="pw-wrap">
+      <input type="password" class="pw-input" id="pwInput" placeholder="Type your password here..." autocomplete="off" spellcheck="false">
+      <button class="eye" id="eyeBtn">👁</button>
+    </div>
+    <div class="live-wrap">
+      <div class="live-head">
+        <span class="live-label">Policy Strength (live)</span>
+        <span class="live-rating" id="liveRating">—</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
+    </div>
+    <div class="pills">
+      <span class="pill" id="p-up">A-Z Upper</span>
+      <span class="pill" id="p-lo">a-z Lower</span>
+      <span class="pill" id="p-di">0-9 Digits</span>
+      <span class="pill" id="p-sy">!@# Symbols</span>
+      <span class="pill" id="p-ln">8+ Length</span>
+      <span class="pill" id="p-16">16+ chars</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Policy Declaration</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Toggle what applies to your password:</p>
+    <div class="toggle-grid" id="togGrid">
+      <div class="tog" data-key="upper"><div class="sw"><div class="th"></div></div><span class="tog-label">Has Uppercase [A-Z]</span></div>
+      <div class="tog" data-key="lower"><div class="sw"><div class="th"></div></div><span class="tog-label">Has Lowercase [a-z]</span></div>
+      <div class="tog" data-key="digits"><div class="sw"><div class="th"></div></div><span class="tog-label">Has Numbers [0-9]</span></div>
+      <div class="tog" data-key="symbols"><div class="sw"><div class="th"></div></div><span class="tog-label">Has Special Symbols</span></div>
+      <div class="tog" data-key="no_dict"><div class="sw"><div class="th"></div></div><span class="tog-label">Avoids common words</span></div>
+      <div class="tog" data-key="no_personal"><div class="sw"><div class="th"></div></div><span class="tog-label">No personal info</span></div>
+      <div class="tog" data-key="no_repeat"><div class="sw"><div class="th"></div></div><span class="tog-label">No repeated chars (aaa)</span></div>
+      <div class="tog" data-key="no_seq"><div class="sw"><div class="th"></div></div><span class="tog-label">No sequences (123/abc)</span></div>
+      <div class="tog" data-key="unique"><div class="sw"><div class="th"></div></div><span class="tog-label">One account only</span></div>
+      <div class="tog" data-key="mfa"><div class="sw"><div class="th"></div></div><span class="tog-label">2FA is enabled</span></div>
+    </div>
+    <button class="btn btn-primary" id="analyzeBtn" onclick="doAnalyze()">
+      <span id="btnTxt">🔍  Analyze Password Policy</span>
+      <div class="spin" id="btnSpin"></div>
+    </button>
+  </div>
+
+  <!-- Results -->
+  <div id="results" style="display:none">
+
+    <div class="card">
+      <div class="card-label">Policy Score</div>
+      <div class="score-row">
+        <div class="ring-wrap">
+          <svg viewBox="0 0 88 88" xmlns="http://www.w3.org/2000/svg">
+            <circle class="rbg" cx="44" cy="44" r="40"/>
+            <circle class="rfill" id="ringFill" cx="44" cy="44" r="40"/>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-num" id="ringNum">0</div>
+            <div class="ring-sub">/100</div>
+          </div>
+        </div>
+        <div class="score-meta">
+          <div class="rating-big" id="ratingBig">—</div>
+          <div class="meta-grid">
+            <div class="meta-box"><div class="meta-k">Length</div><div class="meta-v" id="mLen">—</div></div>
+            <div class="meta-box"><div class="meta-k">Entropy</div><div class="meta-v" id="mEnt">—</div></div>
+            <div class="meta-box" style="grid-column:span 2"><div class="meta-k">Estimated Crack Time</div><div class="meta-v" id="mCrk">—</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HIBP -->
+    <div class="card">
+      <div class="card-label">Leaked Database Check (HIBP)</div>
+      <div id="hibpBox"></div>
+      <div class="sha-visual" id="shaVis" style="display:none">
+        SHA-1: <span id="shaFull"></span><br>
+        Sending: <span class="sha-sent" id="shaSent"></span><span class="sha-hidden" id="shaHid"></span>
+        <span style="color:var(--muted);font-size:10px"> ← only green part sent</span>
+      </div>
+      <p style="font-size:10.5px;color:var(--muted);margin-top:10px">Source: haveibeenpwned.com · k-Anonymity · password never leaves your device</p>
+    </div>
+
+    <!-- Chars -->
+    <div class="card">
+      <div class="card-label">Character Composition</div>
+      <div class="char-grid" id="charGrid"></div>
+    </div>
+
+    <!-- Problems -->
+    <div class="card">
+      <div class="card-label">Problems Detected</div>
+      <div id="probWrap"></div>
+    </div>
+
+    <!-- Mismatches -->
+    <div class="card" id="mmCard" style="display:none">
+      <div class="card-label">⚠ Declaration Mismatches</div>
+      <div id="mmWrap"></div>
+    </div>
+
+    <!-- Policy checklist -->
+    <div class="card">
+      <div class="card-label">Password Policy Checklist</div>
+      <div class="checklist" id="checklist"></div>
+    </div>
+
+    <!-- Tips -->
+    <div class="card">
+      <div class="card-label">Tips to Improve</div>
+      <div class="tip-list" id="tipsList"></div>
+    </div>
+
+    <!-- Verdict -->
+    <div id="verdictWrap"></div>
+
+  </div><!-- /results -->
+</div><!-- /analyze panel -->
+
+<!-- ═══════════════ GENERATOR TAB ═══════════════ -->
+<div class="panel" id="panel-generate">
+  <div class="card">
+    <div class="card-label">Password Options</div>
+
+    <div class="len-row">
+      <span class="len-label">Length:</span>
+      <input type="range" id="lenSlider" min="8" max="64" value="16" oninput="document.getElementById('lenVal').textContent=this.value">
+      <span class="len-val" id="lenVal">16</span>
+    </div>
+
+    <div class="gen-controls" id="genOpts">
+      <div class="gen-opt on" data-key="upper"><div class="sw"><div class="th"></div></div><span class="gen-opt-label">Uppercase [A-Z]</span></div>
+      <div class="gen-opt on" data-key="lower"><div class="sw"><div class="th"></div></div><span class="gen-opt-label">Lowercase [a-z]</span></div>
+      <div class="gen-opt on" data-key="digits"><div class="sw"><div class="th"></div></div><span class="gen-opt-label">Numbers [0-9]</span></div>
+      <div class="gen-opt on" data-key="symbols"><div class="sw"><div class="th"></div></div><span class="gen-opt-label">Special Symbols</span></div>
+    </div>
+
+    <button class="btn btn-primary" onclick="doGenerate()">⚡  Generate Strong Password</button>
+  </div>
+
+  <div class="card" id="genResult" style="display:none">
+    <div class="card-label">Generated Password</div>
+    <div class="gen-result">
+      <div class="gen-pass" id="genPass">—</div>
+      <div class="gen-meta">
+        <span class="gen-tag" id="genLen">—</span>
+        <span class="gen-tag" id="genEnt">—</span>
+        <span class="gen-tag" id="genCrk">—</span>
+        <span class="gen-tag" id="genStr" style="color:var(--green)">—</span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="copy-btn" id="copyBtn" onclick="copyPass()">📋 Copy Password</button>
+        <button class="btn-secondary btn" onclick="doGenerate()" style="padding:8px 14px;font-size:12px">🔄 Regenerate</button>
+        <button class="btn-secondary btn" onclick="useGenerated()" style="padding:8px 14px;font-size:12px">🔍 Analyze This</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ BCRYPT TAB ═══════════════ -->
+<div class="panel" id="panel-bcrypt">
+  <div class="card">
+    <div class="card-label">Hashing Demo — Why bcrypt?</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.6">
+      Enter any password to see how different hashing algorithms work.
+      This demonstrates why MD5/SHA-1 are <strong style="color:var(--red)">wrong</strong> for password storage
+      and why bcrypt is <strong style="color:var(--green)">correct</strong>.
+    </p>
+
+    <div class="pw-wrap" style="margin-bottom:14px">
+      <input type="text" class="pw-input" id="bcryptInput" placeholder="Enter any text to hash..." style="font-size:15px;letter-spacing:0">
+    </div>
+
+    <div class="rounds-row">
+      <span class="len-label">Work Factor (rounds):</span>
+      <input type="range" id="roundsSlider" min="4" max="12" value="10" oninput="document.getElementById('roundsVal').textContent=this.value">
+      <span class="len-val" id="roundsVal">10</span>
+    </div>
+
+    <button class="btn btn-primary" onclick="doBcrypt()">🔒  Generate Hashes</button>
+  </div>
+
+  <div class="card" id="bcryptResult" style="display:none">
+    <div class="card-label">Hash Comparison</div>
+    <div class="hash-compare" id="hashCompare"></div>
+    <div id="verifyBox" style="margin-top:16px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:9px;display:none">
+      <div class="card-label" style="margin-bottom:10px">Verification Demo</div>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">The stored hash can verify the original password without storing it plaintext:</p>
+      <div class="verify-badge" id="verifyResult"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:12px 14px;font-size:12.5px;color:#fca5a5">
+        ✘ &nbsp;<strong>MD5 / SHA-1 / SHA-256</strong> — Fast algorithms. GPU can try billions/sec. Bad for passwords.
+      </div>
+      <div style="background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:12px 14px;font-size:12.5px;color:#86efac">
+        ✔ &nbsp;<strong>bcrypt / argon2 / scrypt</strong> — Slow by design. Work factor adjustable. Correct for passwords.
+      </div>
+      <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 14px;font-size:12.5px;color:#93c5fd">
+        ℹ &nbsp;<strong>In our project</strong> — SHA-1 is used ONLY to match HIBP API format, NOT for storing passwords.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════ HISTORY TAB ═══════════════ -->
+<div class="panel" id="panel-history">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="card-label" style="margin-bottom:0">Past Analyses (SQLite)</div>
+      <button class="btn btn-red btn" onclick="clearHistory()">🗑 Clear All</button>
+    </div>
+    <div id="histList"><div class="hist-empty">No analyses yet. Analyze a password first!</div></div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+<footer>passguard · password policy analyzer · flask + sqlite + hibp api</footer>
+
+<script>
+// ── Tab switching ──────────────────────────────────────────────
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-'+id).classList.add('active');
+  if (id === 'history') loadHistory();
+}
+
+// ── Policy toggles ─────────────────────────────────────────────
+const policy = {};
+document.querySelectorAll('#togGrid .tog').forEach(el => {
+  const k = el.dataset.key;
+  policy[k] = false;
+  el.addEventListener('click', () => {
+    policy[k] = !policy[k];
+    el.classList.toggle('on', policy[k]);
+  });
+});
+
+// ── Generator toggles ──────────────────────────────────────────
+const genOpts = {};
+document.querySelectorAll('#genOpts .gen-opt').forEach(el => {
+  const k = el.dataset.key;
+  genOpts[k] = true;
+  el.classList.add('on');
+  el.addEventListener('click', () => {
+    genOpts[k] = !genOpts[k];
+    el.classList.toggle('on', genOpts[k]);
+    el.querySelector('.sw').style.background = genOpts[k] ? 'var(--blue)' : '';
+    el.querySelector('.th').style.left = genOpts[k] ? '17.5px' : '';
+  });
+});
+
+// ── Eye toggle ─────────────────────────────────────────────────
+const pwInput = document.getElementById('pwInput');
+document.getElementById('eyeBtn').onclick = () => {
+  pwInput.type = pwInput.type === 'password' ? 'text' : 'password';
+};
+
+// ── Color helpers ──────────────────────────────────────────────
+function sc(s) {
+  if (s < 25) return '#ef4444';
+  if (s < 45) return '#f97316';
+  if (s < 60) return '#f59e0b';
+  if (s < 78) return '#06b6d4';
+  return '#22c55e';
+}
+
+// ── Live bar ───────────────────────────────────────────────────
+pwInput.addEventListener('input', () => {
+  const pw = pwInput.value;
+  let s = 0;
+  if (/[A-Z]/.test(pw)) s += 17;
+  if (/[a-z]/.test(pw)) s += 17;
+  if (/\d/.test(pw))    s += 17;
+  if (/[!@#$%^&*]/.test(pw)) s += 17;
+  if (pw.length >= 12)  s += 16;
+  if (pw.length >= 16)  s += 8;
+  s = Math.min(s, 100);
+
+  const fill = document.getElementById('barFill');
+  const lbl  = document.getElementById('liveRating');
+  fill.style.width = s + '%';
+  const c = sc(s);
+  fill.style.background = c;
+  let r = '—';
+  if (pw.length === 0) r = '—';
+  else if (s <= 16) r = 'Very Weak';
+  else if (s <= 33) r = 'Weak';
+  else if (s <= 50) r = 'Moderate';
+  else if (s <= 75) r = 'Strong';
+  else r = 'Very Strong';
+  lbl.textContent = r;
+  lbl.style.color = pw.length ? c : 'var(--muted)';
+
+  document.getElementById('p-up').classList.toggle('on', /[A-Z]/.test(pw));
+  document.getElementById('p-lo').classList.toggle('on', /[a-z]/.test(pw));
+  document.getElementById('p-di').classList.toggle('on', /\d/.test(pw));
+  document.getElementById('p-sy').classList.toggle('on', /[!@#$%^&*()\-_]/.test(pw));
+  document.getElementById('p-ln').classList.toggle('on', pw.length >= 8);
+  document.getElementById('p-16').classList.toggle('on', pw.length >= 16);
+});
+
+pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') doAnalyze(); });
+
+// ── Analyze ────────────────────────────────────────────────────
+async function doAnalyze() {
+  const pw = pwInput.value;
+  if (!pw) { pwInput.focus(); return; }
+  const btn = document.getElementById('analyzeBtn');
+  const txt = document.getElementById('btnTxt');
+  const sp  = document.getElementById('btnSpin');
+  btn.disabled = true; txt.style.display = 'none'; sp.style.display = 'block';
+  try {
+    const r = await fetch('/analyze', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({password: pw, policy})
+    });
+    const d = await r.json();
+    renderResults(d);
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btn.disabled = false; txt.style.display = 'block'; sp.style.display = 'none'; }
+}
+
+function renderResults(d) {
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
+  const c = sc(d.score);
+  const circ = 2 * Math.PI * 40;
+  const ring = document.getElementById('ringFill');
+  ring.style.stroke = c;
+  ring.style.strokeDashoffset = circ - (circ * d.score / 100);
+  document.getElementById('ringNum').textContent = d.score;
+  document.getElementById('ringNum').style.color = c;
+  document.getElementById('ratingBig').textContent = d.rating;
+  document.getElementById('ratingBig').style.color = c;
+  document.getElementById('mLen').textContent = d.length + ' chars';
+  document.getElementById('mEnt').textContent = d.entropy + ' bits';
+  document.getElementById('mCrk').textContent = d.crack_time;
+
+  // HIBP
+  const hb = document.getElementById('hibpBox');
+  if (d.hibp_status === 'found') {
+    hb.innerHTML = `<div class="hibp found"><span class="hibp-icon">🚨</span><div><strong>LEAKED!</strong> Found in <strong>${d.breach_count.toLocaleString()}</strong> real data breaches. Change immediately.</div></div>`;
+  } else if (d.hibp_status === 'safe') {
+    hb.innerHTML = `<div class="hibp safe"><span class="hibp-icon">✅</span><div><strong>Not found</strong> in any known breach. Checked against 900M+ leaked passwords.</div></div>`;
+  } else {
+    hb.innerHTML = `<div class="hibp offline"><span class="hibp-icon">⚠️</span><div><strong>Check skipped</strong> — no internet connection.</div></div>`;
+  }
+  // SHA-1 visual
+  if (d.sha1_full) {
+    document.getElementById('shaVis').style.display = 'block';
+    document.getElementById('shaFull').textContent = d.sha1_full;
+    document.getElementById('shaSent').textContent = d.sha1_prefix;
+    document.getElementById('shaHid').textContent  = d.sha1_full.slice(5);
+  }
+
+  // Chars
+  const cg = document.getElementById('charGrid');
+  const chars = [
+    ['Uppercase [A-Z]','🔠', d.has_upper],
+    ['Lowercase [a-z]','🔡', d.has_lower],
+    ['Numbers [0-9]',  '🔢', d.has_digit],
+    ['Special Symbols','🔣', d.has_symbol],
+  ];
+  cg.innerHTML = chars.map(([n,i,f]) => `<div class="char-item ${f?'found':'missing'}">
+    <span class="char-icon">${i}</span><span class="char-txt">${n}</span>
+    <span class="char-badge">${f?'Found':'Missing'}</span></div>`).join('');
+
+  // Problems
+  const pw = document.getElementById('probWrap');
+  if (!d.problems.length) {
+    pw.innerHTML = `<div class="ok-msg">✅ &nbsp;No problems detected — great job!</div>`;
+  } else {
+    pw.innerHTML = `<div class="prob-list">${d.problems.map(p=>`<div class="prob-item">⚠ ${p}</div>`).join('')}</div>`;
+  }
+
+  // Mismatches
+  const mc = document.getElementById('mmCard');
+  const mw = document.getElementById('mmWrap');
+  if (d.mismatches.length) {
+    mc.style.display = 'block';
+    mw.innerHTML = d.mismatches.map(m=>`<div class="mm-item">⚡ ${m}</div>`).join('');
+  } else mc.style.display = 'none';
+
+  // Checklist
+  document.getElementById('checklist').innerHTML = Object.entries(d.policy_checks)
+    .map(([n,p])=>`<div class="chk-row"><span class="chk-name">${n}</span>
+      <span class="chk-pill ${p?'pass':'fail'}">${p?'PASS':'FAIL'}</span></div>`).join('');
+
+  // Tips
+  const tl = document.getElementById('tipsList');
+  if (!d.tips.length) {
+    tl.innerHTML = `<div class="ok-msg">🏆 &nbsp;Your password follows all policies. Excellent!</div>`;
+  } else {
+    tl.innerHTML = d.tips.map((t,i)=>{
+      const urg = t.includes('URGENT') || t.includes('Change');
+      return `<div class="tip-item ${urg?'urgent':''}"><div class="tip-num">${i+1}</div><span>${t}</span></div>`;
+    }).join('');
+  }
+
+  // Verdict
+  const vw = document.getElementById('verdictWrap');
+  let cls,em,vt,vs;
+  if (d.pwned){cls='lk';em='🚨';vt='Change This Password Immediately';vs='Found in real data breaches.'}
+  else if (d.score>=78){cls='vs';em='🏆';vt='Excellent Password Policy!';vs='Very strong — follows all best practices.'}
+  else if (d.score>=60){cls='st';em='👍';vt='Good Password Policy';vs='Small improvements will make it excellent.'}
+  else if (d.score>=45){cls='mo';em='⚠️';vt='Moderate Password Policy';vs='Strengthen it using the tips above.'}
+  else{cls='vw';em='❌';vt='Weak Password Policy';vs='Needs significant improvement.'}
+  vw.innerHTML = `<div class="card verdict ${cls}"><div class="v-emoji">${em}</div><div class="v-text">${vt}</div><div class="v-sub">${vs}</div></div>`;
+}
+
+// ── Generator ─────────────────────────────────────────────────
+async function doGenerate() {
+  const length = parseInt(document.getElementById('lenSlider').value);
+  try {
+    const r = await fetch('/generate', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({length, ...genOpts})
+    });
+    const d = await r.json();
+    document.getElementById('genResult').style.display = 'block';
+    document.getElementById('genPass').textContent = d.password;
+    document.getElementById('genLen').textContent  = `${d.length} chars`;
+    document.getElementById('genEnt').textContent  = `${d.entropy} bits`;
+    document.getElementById('genCrk').textContent  = d.crack_time;
+    document.getElementById('genStr').textContent  = d.strength;
+    const c = d.strength === 'Very Strong' ? 'var(--green)' : d.strength === 'Strong' ? 'var(--cyan)' : 'var(--yellow)';
+    document.getElementById('genStr').style.color = c;
+    const cb = document.getElementById('copyBtn');
+    cb.classList.remove('copied');
+    cb.textContent = '📋 Copy Password';
+  } catch(e) { alert('Generator error: ' + e.message); }
+}
+
+function copyPass() {
+  const pw = document.getElementById('genPass').textContent;
+  navigator.clipboard.writeText(pw).then(() => {
+    const cb = document.getElementById('copyBtn');
+    cb.textContent = '✅ Copied!';
+    cb.classList.add('copied');
+    setTimeout(() => { cb.textContent = '📋 Copy Password'; cb.classList.remove('copied'); }, 2000);
+  });
+}
+
+function useGenerated() {
+  const pw = document.getElementById('genPass').textContent;
+  if (pw && pw !== '—') {
+    document.getElementById('pwInput').value = pw;
+    document.getElementById('pwInput').dispatchEvent(new Event('input'));
+    switchTab('analyze', document.querySelectorAll('.tab')[0]);
+  }
+}
+
+// ── Bcrypt Demo ───────────────────────────────────────────────
+async function doBcrypt() {
+  const pw = document.getElementById('bcryptInput').value.trim();
+  const rounds = parseInt(document.getElementById('roundsSlider').value);
+  if (!pw) { document.getElementById('bcryptInput').focus(); return; }
+  try {
+    const r = await fetch('/bcrypt-demo', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({password: pw, rounds})
+    });
+    const d = await r.json();
+    document.getElementById('bcryptResult').style.display = 'block';
+
+    const hashes = [
+      {name:'MD5',      badge:'BAD',  cls:'bad',  val:d.md5,    exp:d.explanation.md5,  time:null},
+      {name:'SHA-1',    badge:'WEAK', cls:'ok',   val:d.sha1,   exp:d.explanation.sha1, time:null},
+      {name:'SHA-256',  badge:'OK',   cls:'ok',   val:d.sha256, exp:d.explanation.sha256,time:null},
+      {name:'bcrypt*',  badge:'BEST', cls:'good', val:d.bcrypt, exp:d.explanation.bcrypt,time:d.bcrypt_time_ms},
+    ];
+
+    document.getElementById('hashCompare').innerHTML = hashes.map(h => `
+      <div class="hash-row">
+        <div class="hash-alg">
+          <span class="alg-name" style="color:${h.cls==='good'?'var(--green)':h.cls==='bad'?'var(--red)':'var(--yellow)'}">${h.name}</span>
+          <span class="alg-badge ${h.cls}">${h.badge}</span>
+        </div>
+        <div class="hash-val">${h.val}</div>
+        <div class="hash-exp">${h.exp}</div>
+        ${h.time !== null ? `<div class="bcrypt-time">⏱ Took ${h.time}ms — intentionally slow!</div>` : ''}
+      </div>`).join('');
+
+    // Verify box
+    const vb = document.getElementById('verifyBox');
+    vb.style.display = 'block';
+    document.getElementById('verifyResult').innerHTML = d.verified
+      ? `<span style="color:var(--green);font-size:20px">✔</span> <span style="color:var(--green)">Password verified successfully against stored hash!</span>`
+      : `<span style="color:var(--red)">✘ Verification failed</span>`;
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+// ── History ───────────────────────────────────────────────────
+async function loadHistory() {
+  const r = await fetch('/history');
+  const rows = await r.json();
+  const el = document.getElementById('histList');
+  if (!rows.length) {
+    el.innerHTML = '<div class="hist-empty">No analyses yet. Analyze a password to see history here!</div>';
+    return;
+  }
+  el.innerHTML = `<div class="hist-list">${rows.map(row => {
+    const c = sc(row.score);
+    const hibpBadge = row.hibp === 'found'
+      ? `<span class="hb leaked">🚨 LEAKED (${parseInt(row.breaches).toLocaleString()})</span>`
+      : row.hibp === 'safe' ? `<span class="hb safe">✅ Safe</span>` : `<span class="hb">⚠ No check</span>`;
+    const chars = [
+      row.has_upper ? '<span class="hb">A-Z</span>' : '',
+      row.has_lower ? '<span class="hb">a-z</span>' : '',
+      row.has_digit ? '<span class="hb">0-9</span>' : '',
+      row.has_symbol? '<span class="hb">!@#</span>' : '',
+    ].filter(Boolean).join('');
+    return `<div class="hist-item">
+      <div class="hist-score" style="color:${c}">${row.score}</div>
+      <div class="hist-info">
+        <div class="hist-rating" style="color:${c}">${row.rating} &nbsp;<span style="font-family:var(--mono);font-size:11px;color:var(--cyan);font-weight:400">${row.masked_pw || '***'}</span></div>
+        <div class="hist-meta">${row.timestamp} · ${row.length} chars · ${row.entropy} bits · ${row.crack}</div>
+        <div class="hist-badges">${hibpBadge}${chars}</div>
+      </div>
+      <div class="hist-actions">
+        <a class="dl-btn" href="/report/${row.id}" target="_blank">📄 PDF</a>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function clearHistory() {
+  if (!confirm('Clear all history?')) return;
+  await fetch('/history/clear', {method:'POST'});
+  loadHistory();
+}
+</script>
+</body>
+</html>
